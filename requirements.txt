@@ -1,0 +1,5 @@
+pythoncom
+pywin32
+numpy
+pandas
+pint
