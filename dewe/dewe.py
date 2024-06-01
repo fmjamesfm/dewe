@@ -9,11 +9,11 @@ TODO: include option for measurement with storing, and load stored data
 import sys
 import numpy as np
 import pythoncom
-from threading import Thread, Event, main_thread, current_thread
+from threading import Event, main_thread, current_thread
 from win32com.client import Dispatch
 from pythoncom import com_error, IID_IDispatch, CoMarshalInterThreadInterfaceInStream, \
     CoGetInterfaceAndReleaseStream
-from win32api import GetCurrentThreadId
+
 import os
 import pint
 import time
@@ -45,39 +45,45 @@ ATYPE_CTNEW = 3
 
 measure_running = Event()
 
-
 global dw_main
+
 
 def on_exit():
     global dw_main
     dw_main = None
     pythoncom.CoUninitialize()
 
+
 atexit.register(on_exit)
-    
+
+
 def reconnect_dewe():
     logger.info('Creating Dewesoft COM connection...')
     global dw_main
-    #global dw_id
+    # global dw_id
 
-    if current_thread()!=main_thread():
+    if current_thread() != main_thread():
         raise Exception('Restarting Dewesoft connection must be done in main thread!')
+        
     dw_main = Dispatch("Dewesoft.App")
-    #dw_id = CoMarshalInterThreadInterfaceInStream(IID_IDispatch, dw_main)
-    #dw_id = dw_main.GetCreatedThreadId()
+    # dw_id = CoMarshalInterThreadInterfaceInStream(IID_IDispatch, dw_main)
+    # dw_id = dw_main.GetCreatedThreadId()
     logger.info('Dewesoft COM connection established.')
     return dw_main
 
+
 initialise_dewe = reconnect_dewe
+
 
 def dw_from_id(dw_id):
     pythoncom.CoInitialize()
     return Dispatch(CoGetInterfaceAndReleaseStream(dw_id, IID_IDispatch))
 
+
 def get_new_dw_id():
     global dw_main
     return CoMarshalInterThreadInterfaceInStream(IID_IDispatch, dw_main)
-    
+
 
 def DataObj(data, fs, name='', unit=None, **kwargs):
     data = pd.Series(data)
@@ -90,16 +96,15 @@ def DataObj(data, fs, name='', unit=None, **kwargs):
     return data
 
 
-    
 class DewesoftWrapper(object):
     """
     Wrapper for Dewesoft COM communication.
     """
 
     def __init__(self, fs=FS, visible=True, notify_window=None, dw_id=None):
-    
-        logger.info('Active COM connections: {})'.format(pythoncom._GetInterfaceCount()))
-        
+
+        logger.info('Active COM connections: {}'.format(pythoncom._GetInterfaceCount()))
+
         self.measureThread = None
         self.isMeasuring = False
         self.stopRequest = False
@@ -111,8 +116,8 @@ class DewesoftWrapper(object):
         self.used_channels_list = []
 
         global dw_main
-        
-        if current_thread()==main_thread():
+
+        if current_thread() == main_thread():
             try:
                 self.dw = dw_main
             except NameError:
@@ -122,7 +127,8 @@ class DewesoftWrapper(object):
             try:
                 self.dw = dw_from_id(dw_id)
             except NameError:
-                raise Exception('You must first initialise the COM connection in the main thread using initialise_dewe()')
+                raise Exception(
+                    'You must first initialise the COM connection in the main thread using initialise_dewe()')
 
     def reconnect(self):
         """
@@ -182,11 +188,10 @@ class DewesoftWrapper(object):
         if os.path.exists(result_path):
             os.remove(result_path)
 
-        self.dw.ExportData(7,0,result_path)
+        self.dw.ExportData(7, 0, result_path)
         self.dw.Measure()
 
         return pd.read_csv(result_path, sep='\t', header=[11], index_col=0)
-
 
     def measure_stop(self):
         """
@@ -233,7 +238,7 @@ class DewesoftWrapper(object):
         """
         Start measurement with storing to catemp.dxd file in default Dewesoft dir.
         """
-        datapath = self.dw.GetSpecDir(4)+'catemp.dxd'
+        datapath = self.dw.GetSpecDir(4) + 'catemp.dxd'
         if os.path.exists(datapath):
             os.remove(datapath)
         self.dw.StartStoring(datapath)
@@ -343,11 +348,13 @@ class DewesoftWrapper(object):
             channels[s] for s in channels if not np.any(
                 channels[s].data) == None]
         return self.data
+
     def __del__(self):
-        if current_thread()!=main_thread():
+        if current_thread() != main_thread():
             pythoncom.CoUninitialize()
-        
+
         del self
+
 
 def convert_dewe_unit(unit):
     """
@@ -372,6 +379,7 @@ class Channel(object):
     """
     Contains Dewesoft DCOM channel and connection. Used to acquire data from a channel.
     """
+
     def __init__(self, channel, index, atype=ATYPE_CTNEW,
                  block_size=BLOCK_SIZE, overlap=0):
         self.channel = channel
@@ -432,18 +440,18 @@ class Channel(object):
 
         return output
 
+
 def _test():
     initialise_dewe()
     dw = DewesoftWrapper()
-    dw.load_setup('test.dxs')
-
+    # dw.load_setup('test.dxs')
 
     dw.start_storing()
     time.sleep(3)
-    ai1t= dw.get_data_by_name('ai 1')
-    ai1t.iloc[-1]
+
     dw.measure_stop()
     dt = dw.load_stored_data()
+    print(dt.columns)
 
 
 if __name__ == '__main__':
